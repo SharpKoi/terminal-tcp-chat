@@ -35,7 +35,7 @@ public class TCPMain {
 				while(true) {
 					System.out.print("[System]請輸入對方的網路位址(IP): ");
 					String ip = reader.readLine();
-					if(ip.equalsIgnoreCase("localhost") || ip.equalsIgnoreCase("local")) {
+					if(ip.equalsIgnoreCase("local")) {
 						ip = "127.0.0.1";
 					}else if(ip.equalsIgnoreCase("default")) {
 						ip = InetAddress.getLocalHost().getHostAddress();
