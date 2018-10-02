@@ -4,20 +4,19 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.net.SocketException;
 
-import cmen.tcp.ChatThread;
+import cmen.tcp.ChatLogger;
+import cmen.tcp.MessageSender;
+import cmen.tcp.TCPChatter;
+import cmen.tcp.ChatLogger.SenderType;
 
-public class TCPServer {
+public class TCPServer extends TCPChatter {
 	public static final int DEFAULT_PORT = 9354;
+	
 	private int port;
-	private ServerSocket ss = null;
-	private Socket s = null;
-	private InputStream input = null;
+	private ServerSocket svSocket = null;
 	private BufferedInputStream bif = null;
-	private ChatThread ct = null;
-	private Thread chatMain = null;
 	
 	public TCPServer() {
 		this(DEFAULT_PORT);
@@ -25,6 +24,15 @@ public class TCPServer {
 	
 	public TCPServer(int port) {
 		this.port = port;
+		this.logger = new ChatLogger(this);
+		this.sender = new MessageSender(this);
+		this.chatMain = new Thread(sender);
+		logger.start();
+	}
+	
+	@Override
+	public String getName() {
+		return "Server";
 	}
 	
 	public void connect() {
@@ -32,28 +40,29 @@ public class TCPServer {
 		byte[] data = new byte[2048];
 		
 		try {
-			ss = new ServerSocket(port);
-			System.out.println("[System]您好，一切都已為您準備就緒了!");
-			System.out.println("[System]正在監聽客戶端......");
-			s = ss.accept();
-			s.getOutputStream().write("Hello World!!".getBytes("Utf-8"));
-			System.out.println("[System]成功監聽到客戶端的連線!");
+			svSocket = new ServerSocket(port);
+			logger.info(SenderType.SYSTEM, "您好，一切都已為您準備就緒了!");
+			logger.info(SenderType.SYSTEM, "正在監聽客戶端......");
+			socket = svSocket.accept();
 			
-			input = s.getInputStream();
-			ct = new ChatThread(s);
-			chatMain = new Thread(ct);
+			socket.getOutputStream().write("Hello World!!".getBytes("Utf-8"));
+			logger.info(SenderType.SYSTEM, "成功監聽到客戶端的連線!");
+			
+			InputStream inputStream = socket.getInputStream();
 			chatMain.start();
 			
-			while(!ct.isStopped()) {
-				if(!s.isClosed() && !ss.isClosed() && s.isConnected() && !s.isInputShutdown() && !s.isOutputShutdown()) {
-					bif = new BufferedInputStream(input);
+			while(!sender.isStopped()) {
+				if(!socket.isClosed() && !svSocket.isClosed() && socket.isConnected() && !socket.isInputShutdown() && !socket.isOutputShutdown()) {
+					bif = new BufferedInputStream(inputStream);
 					while((length = bif.read(data)) > 0) {
-						System.out.println("[Client]" + new String(data, 0, length, "Utf-8"));
+						logger.info(SenderType.CLIENT, new String(data, 0, length, "Utf-8"));
 					}
-					System.out.println("[System]對方似乎已經不在線了，正在關閉所有的通訊程序...");
+					System.out.println(SenderType.SYSTEM.head() + "對方似乎已經不在線了，正在關閉所有的通訊程序...");
 					this.stopAll();
-					System.out.println("[System]已關閉所有連線! bye bye~");
-					System.exit(1);
+					System.out.println(SenderType.SYSTEM.head() + "已關閉所有連線! bye bye~");
+					if(logger != null)
+						logger.shutDown();
+					//System.exit(1);
 				}else {
 					chatMain.interrupt();
 					break;
@@ -65,25 +74,20 @@ public class TCPServer {
 			}
 		} finally {
 			try {
-				System.out.println("[System]正在嘗試關閉所有通訊程序......");
+				System.out.println(SenderType.SYSTEM.head() + "正在嘗試關閉所有通訊程序......");
 				this.stopAll();
-				System.out.println("[System]已關閉所有連線! bye bye~");
-				System.exit(1);
+				System.out.println(SenderType.SYSTEM.head() + "已關閉所有連線! bye bye~");
+				//System.exit(1);
 			}catch(IOException e) {
 				e.printStackTrace();
 			}
 		}
 	}
 	
+	@Override
 	public void stopAll() throws IOException {
-		ct.setStop();
-		chatMain.interrupt();
-		if(input != null)
-			input.close();
-		if(ss != null)
-			ss.close();
-		if(s != null) {
-			s.close();
-		}
+		super.stopAll();
+		if(svSocket != null)
+			svSocket.close();
 	}
 }
